@@ -17,28 +17,28 @@ touch "$logfile"
 # create a detached screen session running bash with the name from above
 screen -dmS "$session_name" bash
 
-
 # create a background process that dumps the current screen content to a file for the session so long as the screen exists
 (while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile" >/dev/null 2>&1; sleep 1; done) &
 
 
 # create an arg passthrough for rsync and set up the command that we're going to run
-args=$(printf '%s ' "$@")
-source=$(printf '%s' "${@:(-2):1}")
-target=$(printf '%s' "${@: -1}")
-commands=$(printf 'rsync --info=progress2 --no-inc-recursive %s; sleep 10; exit;' "$args")
+arg_arr=()
+for arg in "$@"; do
+    #the shell eats the escape characters when things get passed in so we need to put them back
+    arg_escaped=$(echo "$arg" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g')
+    arg_arr+=($arg_escaped)
+done
+args=$(printf '%s ' "${arg_arr[@]}")
+source=$(echo "${@:(-2):1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g')
+source_dir=$(echo "${@:(-2):1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' | grep -o '.*/')
+target=$(echo "${@: -1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g')
+echo $source_dir
+commands=$(printf "trap 'sleep 5; exit' ERR; cd %s; rsync --info=progress2 --no-inc-recursive %s; sleep 5; exit;" "$PWD" "$args")
 
 # if the user sends the --remove-source-files rsync option, then we'll send a command that cleans up the leftover empty directories.
 if [[ $args == *"--remove-source-files"* ]]; then
-  commands=$(printf 'rsync --info=progress2 --no-inc-recursive %s; find %s -empty -type d -delete; sleep 10; exit;' "$args" "$source")
+  commands=$(printf "trap 'sleep 5; exit' ERR; cd %s; rsync --info=progress2 --no-inc-recursive %s; sleep 5; find %s -empty -type d -delete; sleep 5; exit;" "$PWD" "$args" "$source_dir")
 fi
-
-
-# cd the screen session to current working dir, so that the relative paths we pass work properly
-screen -S "$session_name" -X stuff "cd $PWD"`echo -ne '\015'`
-
-# clear the screen for slightly more legible output in the session log file
-screen -S "$session_name" -X stuff "clear"`echo -ne '\015'`
 
 # push the rsync command to the screen session
 screen -S "$session_name" -X stuff "$commands"`echo -ne '\015'`
