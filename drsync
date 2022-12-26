@@ -25,19 +25,19 @@ screen -dmS "$session_name" bash
 arg_arr=()
 for arg in "$@"; do
     #the shell eats the escape characters when things get passed in so we need to put them back
-    arg_escaped=$(echo "$arg" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g')
+    arg_escaped=$(echo "$arg" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g')
     arg_arr+=($arg_escaped)
 done
 args=$(printf '%s ' "${arg_arr[@]}")
-source=$(echo "${@:(-2):1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g')
-source_dir=$(echo "${@:(-2):1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' | grep -o '.*/')
-target=$(echo "${@: -1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g')
-echo $source_dir
-commands=$(printf "trap 'sleep 5; exit' ERR; cd %s; rsync --info=progress2 --no-inc-recursive %s; sleep 5; exit;" "$PWD" "$args")
+source=$(echo "${@:(-2):1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g')
+source_dir=$(echo "${@:(-2):1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g' | grep -o '.*/')
+target=$(echo "${@: -1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g')
+working=$(echo "$PWD" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g')
+commands=$(printf "trap 'sleep 5; exit' ERR; cd %s; rsync --info=progress2 --no-inc-recursive %s; sleep 5; exit;" "$working" "$args")
 
 # if the user sends the --remove-source-files rsync option, then we'll send a command that cleans up the leftover empty directories.
 if [[ $args == *"--remove-source-files"* ]]; then
-  commands=$(printf "trap 'sleep 5; exit' ERR; cd %s; rsync --info=progress2 --no-inc-recursive %s; sleep 5; find %s -empty -type d -delete; sleep 5; exit;" "$PWD" "$args" "$source_dir")
+  commands=$(printf "trap 'sleep 5; exit' ERR; cd %s; rsync --info=progress2 --no-inc-recursive %s; sleep 5; find %s -empty -type d -delete; sleep 5; exit;" "$working" "$args" "$source_dir")
 fi
 
 # push the rsync command to the screen session
