@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
 # create a variable that contains the entire set of arguments passed as a single line and preserving escape characters
-args=$(printf '%s' "$*")
+args=""
+for arg in "$@"
+do
+  args+=$(printf '%q ' "$arg")
+done
+#echo "$args"
 
 # create a hidden logfile directory if there isn't already one
 if [ ! -d "$HOME/.drsync_transfers" ] 
@@ -45,10 +50,12 @@ fi
 
 # parse args to figure out which args are source directories.
 sources=()
+sources_str=""
 for var in ${@:1:$#-1}
 do
   [[ $var =~ ^-.* ]] && continue
-     sources+=("$var")
+    sources+=("$var")
+    sources_str="$sources_str$var\n"
 done
 
 # parse for target
@@ -57,16 +64,26 @@ target="${@: -1}"
 # if we passed a --remove-source-files, then modify the args to include a bunch of find and delete empties
 cleanup='No'
 if [[ $args == *"--remove-source-files"* ]]; then
+  source_parents=()
   for source in "${sources[@]}"
   do
-    args=`printf '%s; find %s -empty -type d -delete' "$args" "$source"`
+    source_parent=$(echo "$source" | grep -o '.*/')
+    echo "$source_parent"
+    source_parents+=("$source_parent")
+  done
+  uniq_source_parents=($(for p in "${source_parents[@]}"; do echo "${p}"; done | sort -u))
+  for p in "$uniq_source_parents"
+  do
+    args=`printf '%s; find %s -empty -type d -delete' "$args" "$p"`
   done
   echo 'Empty directories left in source directories will be cleaned after rsync is complete.'
   cleanup='Yes'
 fi
 
+printf "$sources_str" > "$logfile.sources"
+printf "$target" > "$logfile.target"
 # launch the screen session with the arguments we passed
-screen -dmS "$session_name" bash -c "cd $PWD; echo pwd: $PWD; echo Sources: ${sources[@]}; echo Target: $target; echo Removed and cleaned sources: $cleanup; echo Used --include-from option: $include_from_used; rsync --info=progress2 $args; sleep 3;"
+screen -dmS "$session_name" bash -c "echo pwd: $PWD; echo Removed and cleaned sources: $cleanup; echo Used --include-from option: $include_from_used; rsync --info=progress2 $args; sleep 3;"
 
 # create a background process that dumps the current screen content to a file for the session so long as the screen exists
 (while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.log" >/dev/null 2>&1; sleep 1; done) &
