@@ -6,4 +6,4 @@ if [ $# -eq 0 ]
     num="$1"
 fi
 
-cmdwatch "tail -n +1 $HOME/.drsync_transfers/drsync.* | uniq | tail -"$num""
+cmdwatch "tail -n +1 $HOME/.drsync_transfers/drsync*.log | uniq | tail -"$num""

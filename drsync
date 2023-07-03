@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # exit if we hit any error
-set -e
+#set -e
 
+# create a variable that contains the entire set of arguments passed as a single line
+args=$(printf '%s' "$*")
+
+# create a hidden logfile directory if there isn't already one
 if [ ! -d "$HOME/.drsync_transfers" ] 
 then
    mkdir "$HOME/.drsync_transfers"
@@ -13,40 +17,50 @@ transfer_num=$((prev_transfer_num+1))
 session_name=`printf 'drsync.%06g' "$transfer_num"`
 logfile="$HOME/.drsync_transfers/$session_name"
 
-# create a trap the will fire on error that kills the screen session, so that if there is some error that happens in this function we don't get left with a floating detatched screen that isn't working on anything
-trap 'screen -S "$session_name" -X quit; echo "Error encountered in drsync execution, killing the screen session and exiting."' ERR
-
 # touch logfile to reserve number in case another job launches before logging starts
-touch "$logfile"
+touch "$logfile.log"
 
-# create a detached screen session running bash with the name from above
-screen -dmS "$session_name" bash
-
-# create a background process that dumps the current screen content to a file for the session so long as the screen exists
-(while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile" >/dev/null 2>&1; sleep 1; done) &
-
-
-# create an arg passthrough for rsync and set up the command that we're going to run
-arg_arr=()
-for arg in "$@"; do
-    #the shell eats the escape characters when things get passed in so we need to put them back
-    arg_escaped=$(echo "$arg" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g' -e 's/\&/\\&/g' -e 's/\$/\\$/g' -e 's/{/\\{/g' -e 's/}/\\}/g')
-    arg_arr+=($arg_escaped)
-done
-args=$(printf '%s ' "${arg_arr[@]}")
-source=$(echo "${@:(-2):1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g' -e 's/\&/\\&/g' -e 's/\$/\\$/g' -e 's/{/\\{/g' -e 's/}/\\}/g')
-source_dir=$(echo "${@:(-2):1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g' -e 's/\&/\\&/g' -e 's/\$/\\$/g' -e 's/{/\\{/g' -e 's/}/\\}/g' | grep -o '.*/')
-target=$(echo "${@: -1}" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g' -e 's/\&/\\&/g' -e 's/\$/\\$/g' -e 's/{/\\{/g' -e 's/}/\\}/g')
-working=$(echo "$PWD" | sed -e 's/\\/\\\\/g' -e 's/ /\\ /g' -e 's/!/\\!/g' -e 's/(/\\(/g' -e 's/)/\\)/g' -e 's/#/\\#/g' -e 's/\&/\\&/g' -e 's/\$/\\$/g' -e 's/{/\\{/g' -e 's/}/\\}/g')
-commands=$(printf "trap 'sleep 5; exit' ERR; cd %s; rsync --info=progress2 --no-inc-recursive %s; sleep 5; exit;" "$working" "$args")
-
-# if the user sends the --remove-source-files rsync option, then we'll send a command that cleans up the leftover empty directories.
-if [[ $args == *"--remove-source-files"* ]]; then
-  commands=$(printf "trap 'sleep 5; exit' ERR; cd %s; rsync --info=progress2 --no-inc-recursive %s; sleep 5; find %s -empty -type d -delete; sleep 5; exit;" "$working" "$args" "$source_dir")
+# parse args to figure out if the transfer is using any --include-from text files, so that we can preserve them alongside the logs
+include_from_used='No'
+if [[ $args == *"--include-from"* ]]; then
+  for var in "$@"
+  do
+    if [[ $var == *"--include-from"* ]]; then
+      include_from=$(echo "$var" | sed 's/--include-from=//')
+    fi
+  done
+  cp "$include_from" "$logfile.includefrom"
+  include_from_used='Yes'
 fi
 
-# push the rsync command to the screen session
-screen -S "$session_name" -X stuff "$commands"`echo -ne '\015'`
+
+# parse args to figure out which args are source directories.
+sources=()
+for var in ${@:1:$#-1}
+do
+  [[ $var =~ ^-.* ]] && continue
+     sources+=("$var")
+done
+
+# parse for target
+target="${@: -1}"
+
+# if we passed a --remove-source-files, then modify the args to include a bunch of find and delete empties
+cleanup='No'
+if [[ $args == *"--remove-source-files"* ]]; then
+  for source in "${sources[@]}"
+  do
+    args=`printf '%s; find %s -empty -type d -delete' "$args" "$source"`
+  done
+  echo 'Empty directories left in source directories will be cleaned after rsync is complete.'
+  cleanup='Yes'
+fi
+
+# launch the screen session with the arguments we passed
+screen -dmS "$session_name" bash -c "cd $PWD; echo pwd: $PWD; echo Sources: ${sources[@]}; echo Target: $target; echo Removed and cleaned sources: $cleanup; rsync --info=progress2 $args; sleep 3;"
+
+# create a background process that dumps the current screen content to a file for the session so long as the screen exists
+(while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.log" >/dev/null 2>&1; sleep 1; done) &
 
 # tell the user where to watch the progress output
-printf 'Status can be viewed by watching %s\n' "$logfile"
+printf 'Status can be viewed by watching %s\n' "$logfile."
