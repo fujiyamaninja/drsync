@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# exit if we hit any error
-#set -e
 
-# create a variable that contains the entire set of arguments passed as a single line
+# create a variable that contains the entire set of arguments passed as a single line and preserving escape characters
 args=$(printf '%s' "$*")
 
 # create a hidden logfile directory if there isn't already one
@@ -31,8 +29,19 @@ if [[ $args == *"--include-from"* ]]; then
   done
   cp "$include_from" "$logfile.includefrom"
   include_from_used='Yes'
+  # modify the args passed to screen session to cleanup the include file.
+  args=`printf '%s; rm %s' "$args" "$include_from"`
 fi
 
+#cludes=()
+#if [[ $args == *"--*clude="* ]]; then
+#  for var in "$@"
+#  do
+#    if [[ $args == *"--*clude="* ]]; then
+#      cludes+=("$var")
+#    fi
+#  done
+#fi
 
 # parse args to figure out which args are source directories.
 sources=()
@@ -57,7 +66,7 @@ if [[ $args == *"--remove-source-files"* ]]; then
 fi
 
 # launch the screen session with the arguments we passed
-screen -dmS "$session_name" bash -c "cd $PWD; echo pwd: $PWD; echo Sources: ${sources[@]}; echo Target: $target; echo Removed and cleaned sources: $cleanup; rsync --info=progress2 $args; sleep 3;"
+screen -dmS "$session_name" bash -c "cd $PWD; echo pwd: $PWD; echo Sources: ${sources[@]}; echo Target: $target; echo Removed and cleaned sources: $cleanup; echo Used --include-from option: $include_from_used; rsync --info=progress2 $args; sleep 3;"
 
 # create a background process that dumps the current screen content to a file for the session so long as the screen exists
 (while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.log" >/dev/null 2>&1; sleep 1; done) &
