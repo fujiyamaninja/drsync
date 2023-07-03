@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
-cd $1
-find .
-cd - > /dev/null
+targ=$(printf '%q' "$1" | sed -e "s/\/\$//")
+find "$@" | tail -n+2 | sed -e "s|$targ\/||" 
