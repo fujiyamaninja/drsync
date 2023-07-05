@@ -95,8 +95,9 @@ printf "$sources_str" > "$logfile.sources"
 printf "$target" > "$logfile.target"
 
 read  -n 1 -p "Proceed with transfer? (Y/n):" transfer_approved
+echo ''
 if [ "$transfer_approved" == 'n' ] || [ "$transfer_approved" == 'N' ]; then
-  printf '\nTransfer aborted.\n'
+  echo 'Transfer aborted.'
   echo 'Transfer aborted.' >> "$logfile.status"
 else
   # launch the screen session with the arguments we passed
