@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-if [ $# -eq 0 ]
-  then
-    num=25
-  else
-    num="$1"
-fi
-
-cmdwatch "tail -n +1 $HOME/.drsync_transfers/drsync*.status | uniq | tail -"$num""
