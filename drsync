@@ -44,7 +44,7 @@ if [[ $args == *"--include-from"* ]]; then
   cat "$include_from" > "$logfile.includefrom"
   include_from_used='Yes'
   # modify the args passed to screen session to cleanup the include file.
-  args=`printf '%s; rm %s' "$args" "$include_from"`
+  args=`printf '%s; rm %s 2>> %s' "$args" "$include_from" "$logfile.err"`
 fi
 
 # parse args to figure out if the transfer is using any --include-from text files, so that we can preserve them alongside the logs
@@ -59,7 +59,7 @@ if [[ $args == *"--files-from"* ]]; then
   cat "$files_from" > "$logfile.filesfrom"
   files_from_used='Yes'
   # modify the args passed to screen session to cleanup the include file.
-  args=`printf '%s; rm %s' "$args" "$files_from"`
+  args=`printf '%s; rm %s 2>> %s' "$args" "$files_from" "$logfile.err"`
 fi
 
 # parse args to figure out which args are source directories.
@@ -88,7 +88,7 @@ if [[ $args == *"--remove-source-files"* ]]; then
   uniq_source_parents=($(for p in "${source_parents[@]}"; do echo "${p}"; done | sort -u))
   for p in "$uniq_source_parents"
   do
-    args=`printf '%s; find %s -empty -type d -delete' "$args" "$p"`
+    args=`printf '%s; find %s -empty -type d -delete 2>> %s' "$args" "$p" "$logfile.err"`
   done
   echo 'Empty directories left in source directories will be cleaned after rsync is complete.'
   cleanup='Yes'
