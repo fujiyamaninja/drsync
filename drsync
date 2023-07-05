@@ -14,7 +14,7 @@ then
 fi
 
 # figure out a valid transfer number and assign a new session name
-prev_transfer_num=`ls "$HOME/.drsync_transfers" | sort --version-sort | grep "drsync" | tail -1 | grep -o "[1-9][0-9]*"`
+prev_transfer_num=`ls "$HOME/.drsync_transfers" | sort --version-sort | grep "drsync.*.cmd" | tail -1 | grep -o "[1-9][0-9]*"`
 transfer_num=$((prev_transfer_num+1))
 session_name=`printf 'drsync.%06g' "$transfer_num"`
 logfile="$HOME/.drsync_transfers/$session_name"
@@ -28,6 +28,9 @@ bash -c "awk -v n=1 -v s='<===================== VERIFY INCREMENTAL FILE LIST ==
 
 # touch logfile to reserve number in case another job launches before logging starts
 touch "$logfile.status"
+
+# add to the args to redirect any rsync errors to a file
+args=`printf '%s 2> %s' "$args" "$logfile.err"`
 
 # parse args to figure out if the transfer is using any --include-from text files, so that we can preserve them alongside the logs
 include_from_used='No'
@@ -101,10 +104,10 @@ if [ "$transfer_approved" == 'n' ] || [ "$transfer_approved" == 'N' ]; then
   echo 'Transfer aborted.' >> "$logfile.status"
 else
   # launch the screen session with the arguments we passed
-  screen -dmS "$session_name" bash -c "echo Started: `date`; echo pwd: $PWD; echo Remove and clean sources: $cleanup; echo Use --include-from option: $include_from_used; echo Use --files-from option: $files_from_used; rsync --no-inc-recursive --info=progress2 $args; sleep 3;"
+  screen -dmS "$session_name" -L -Logfile "$logfile.log" bash -c "echo Started: `date`; echo pwd: $PWD; echo Remove and clean sources: $cleanup; echo Use --include-from option: $include_from_used; echo Use --files-from option: $files_from_used; rsync --no-inc-recursive --info=progress2 $args; sleep 3;" 
 
   # create a background process that dumps the current screen content to a file for the session so long as the screen exists
-  (while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.status" >/dev/null 2>&1; echo Finished: `date` >> "$logfile.status"; sleep 1; done) &
+  (while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.status" >/dev/null 2>&1; [ -s "$logfile.err" ] && echo "Error encountered during rsync execution. See $logfile.err" >> "$logfile.status"; echo Finished: `date` >> "$logfile.status"; sleep 1; done) &
 fi
 
 # tell the user where to watch the progress output
