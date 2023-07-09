@@ -100,7 +100,6 @@ printf "$sources_str" > "$logfile.sources"
 printf "$target" > "$logfile.target"
 
 export sources_print
-export sources_print
 export target
 export cleanup
 export include_from_used
