@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 
 username="$USER"
+fixedtn='no'
 
-while getopts 'u:h' opt; do
+while getopts 'un:h' opt; do
   case "$opt" in
     u)
       username="$OPTARG"
+      ;;
+
+    n)
+      fixedtn="$OPTARG"
       ;;
 
     ?|h)
@@ -23,21 +28,41 @@ if [ $# -eq 0 ]
     num="$1"
 fi
 
-transfer_num_latest=`ls "$HOME/.drsync_transfers" | sort --version-sort | grep "drsync.*.cmd" | tail -1 | grep -o "[1-9][0-9]*"`
-session_name=`printf 'drsync.%06g' "$transfer_num"`
+# get a list of current sessions
+active_sessions=$(screen -ls | grep -o 'drsync\.[0-9]*' | sort)
 
-if (( num > transfer_num_latest )); then
-  num="$transfer_num_latest"
-fi
 
-for ((n=num-1;n>-1;n--))
-do
-  log_num=$((transfer_num_latest - n))
-  session_name=`printf 'drsync.%06g' "$log_num"`
+if [[ "$fixedtn" == 'no' ]]; then
+  for session in "${active_sessions[@]}"
+  do
+    logfile=$(eval echo ~"$username"/.drsync_transfers/"$session".status)
+    if [ -f "$logfile" ]; then
+      echo "========> $logfile <========"
+      sed -e '/^$/d' "$logfile"
+      echo ''
+    fi
+  done
+#  transfer_num_latest=`ls "$HOME/.drsync_transfers" | sort --version-sort | grep "drsync.*.cmd" | tail -1 | grep -o "[1-9][0-9]*"`
+#  session_name=`printf 'drsync.%06g' "$transfer_num"`
+#
+#  if (( num > transfer_num_latest )); then
+#    num="$transfer_num_latest"
+#  fi
+#
+#  for ((n=num-1;n>-1;n--))
+#  do
+#    log_num=$((transfer_num_latest - n))
+#    session_name=`printf 'drsync.%06g' "$log_num"`
+#    logfile=$(eval echo ~"$username"/.drsync_transfers/"$session_name".status)
+#    if [ -f "$logfile" ]; then
+#      echo "========> $logfile <========"
+#      sed -e '/^$/d' "$logfile"
+#      echo ''
+#    fi
+#  done
+else
+  session_name=`printf 'drsync.%06g' "$fixedtn"`
   logfile=$(eval echo ~"$username"/.drsync_transfers/"$session_name".status)
-  if [ -f "$logfile" ]; then
-    echo "========> $logfile <========"
-    sed -e '/^$/d' "$logfile"
-    echo ''
-  fi
-done
+  echo "========> $logfile <========"
+  sed -e '/^$/d' "$logfile"
+fi
