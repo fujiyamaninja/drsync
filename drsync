@@ -14,9 +14,9 @@ then
 fi
 
 # figure out a valid transfer number and assign a new session name
-prev_transfer_num=`ls "$HOME/.drsync_transfers" | sort --version-sort | grep "drsync.*.cmd" | tail -1 | grep -o "[1-9][0-9]*"`
+prev_transfer_num=$(ls "$HOME/.drsync_transfers" | sort --version-sort | grep "drsync.*.cmd" | tail -1 | grep -o "[1-9][0-9]*")
 transfer_num=$((prev_transfer_num+1))
-session_name=`printf 'drsync.%06g' "$transfer_num"`
+session_name=$(printf 'drsync.%06g' "$transfer_num")
 logfile="$HOME/.drsync_transfers/$session_name"
 
 # log the command that was used
@@ -30,7 +30,7 @@ bash -c "awk -v n=1 -v s='<===================== VERIFY INCREMENTAL FILE LIST ==
 touch "$logfile.status"
 
 # add to the args to redirect any rsync errors to a file
-args=`printf '%s 2> %s' "$args" "$logfile.err"`
+args=$(printf '%s 2> %s' "$args" "$logfile.err")
 
 # parse args to figure out if the transfer is using any --include-from text files, so that we can preserve them alongside the logs
 include_from_used='No'
@@ -44,7 +44,7 @@ if [[ $args == *"--include-from"* ]]; then
   cat "$include_from" > "$logfile.includefrom"
   include_from_used='Yes'
   # modify the args passed to screen session to cleanup the include file.
-  args=`printf '%s; rm %s 2>> %s' "$args" "$include_from" "$logfile.err"`
+  args=$(printf '%s; rm %s 2>> %s' "$args" "$include_from" "$logfile.err")
 fi
 
 # parse args to figure out if the transfer is using any --include-from text files, so that we can preserve them alongside the logs
@@ -59,7 +59,7 @@ if [[ $args == *"--files-from"* ]]; then
   cat "$files_from" > "$logfile.filesfrom"
   files_from_used='Yes'
   # modify the args passed to screen session to cleanup the include file.
-  args=`printf '%s; rm %s 2>> %s' "$args" "$files_from" "$logfile.err"`
+  args=$(printf '%s; rm %s 2>> %s' "$args" "$files_from" "$logfile.err")
 fi
 
 # parse args to figure out which args are source directories.
@@ -80,19 +80,6 @@ target="${@: -1}"
 # if we passed a --remove-source-files, then modify the args to include a bunch of find and delete empties
 cleanup='No'
 if [[ $args == *"--remove-source-files"* ]]; then
-  source_parents=()
-  for source in "${sources[@]}"
-  do
-    source_parent=$(echo "$source" | grep -o '.*/')
-    echo "$source_parent"
-    source_parents+=("$source_parent")
-  done
-  uniq_source_parents=($(for p in "${source_parents[@]}"; do echo "${p}"; done | sort -u))
-  for p in "$uniq_source_parents"
-  do
-    args=`printf '%s; find %s -empty -type d -delete 2>> %s' "$args" "$p" "$logfile.err"`
-  done
-  echo 'Empty directories left in source directories will be cleaned after rsync is complete.'
   cleanup='Yes'
 fi
 
@@ -107,8 +94,8 @@ export files_from_used
 export args
 
 function rsyncwrapper {
-  today=$(date)
-  echo Started: "$today"
+  start=$(date)
+  echo Started: "$start"
   echo pwd: '   ' "$PWD"
   echo Sources: "$sources_print"
   echo Target: '' "$target"
@@ -116,6 +103,8 @@ function rsyncwrapper {
   echo Use --include-from option: "$include_from_used"
   echo Use --files-from option: "$files_from_used"
   bash -c "rsync --no-inc-recursive --info=progress2 $args"
+  finish=$(date)
+  echo Finished: "$finish"
   sleep 3 
 }
 
@@ -131,8 +120,9 @@ else
   screen -dmS "$session_name" -L -Logfile "$logfile.log" bash -c 'rsyncwrapper'
 
   # create a background process that dumps the current screen content to a file for the session so long as the screen exists
-  (while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.status" >/dev/null 2>&1; [ -s "$logfile.err" ] && echo "Error encountered during rsync execution. See $logfile.err" >> "$logfile.status";  echo Finished: `date` >> "$logfile.status"; sleep 1; done) &
+  (while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.status" >/dev/null 2>&1; [ -s "$logfile.err" ] && echo "Error encountered during rsync execution. See $logfile.err" >> "$logfile.status"; sleep 1; done) &
 fi
 
 # tell the user where to watch the progress output
-printf 'Status can be viewed by watching %s\n' "$logfile.status"
+echo "Status can be viewed at $logfile.status"
+
