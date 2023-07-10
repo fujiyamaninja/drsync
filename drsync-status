@@ -21,6 +21,8 @@ while getopts 'un:h' opt; do
 done
 shift "$(($OPTIND -1))"
 
+userhome=$(eval echo ~"$username")
+
 if [ $# -eq 0 ]
   then
     num=3
@@ -29,13 +31,12 @@ if [ $# -eq 0 ]
 fi
 
 # get a list of current sessions
-active_sessions=$(screen -ls | grep -o 'drsync\.[0-9]*' | sort)
-
+active_sessions=($(screen -ls | grep -o 'drsync\.[0-9]*'))
 
 if [[ "$fixedtn" == 'no' ]]; then
   for session in "${active_sessions[@]}"
   do
-    logfile=$(eval echo ~"$username"/.drsync_transfers/"$session".status)
+    logfile=$(echo "$userhome"/.drsync_transfers/"$session".status)
     if [ -f "$logfile" ]; then
       echo "========> $logfile <========"
       sed -e '/^$/d' "$logfile"
