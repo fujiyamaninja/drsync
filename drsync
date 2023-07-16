@@ -2,9 +2,14 @@
 
 # create a variable that contains the entire set of arguments passed as a single line and preserving escape characters
 args=""
+noint='no'
 for arg in "$@"
 do
-  args+=$(printf '%q ' "$arg")
+  if [[ "$arg" == '--non-int' ]]; then
+    noint='yes'
+  else
+    args+=$(printf '%q ' "$arg")
+  fi
 done
 
 # create a hidden logfile directory if there isn't already one
@@ -22,9 +27,11 @@ logfile="$HOME/.drsync_transfers/$session_name"
 # log the command that was used
 printf 'drsync %s' "$args" > "$logfile.cmd"
 
-# do a dry run of the rsync job and log the file list
-bash -c "rsync -v --dry-run $args > $logfile.filelist"
-bash -c "awk -v n=1 -v s='<===================== VERIFY INCREMENTAL FILE LIST =====================>' 'NR == n {print s} {print}' $logfile.filelist | less -S"
+# do a dry run of the rsync job and log the file list unless we ran non-interactive
+if [[ "$noint" != 'yes' ]]; then
+  bash -c "rsync -v --dry-run $args > $logfile.filelist"
+  bash -c "awk -v n=1 -v s='<===================== VERIFY INCREMENTAL FILE LIST =====================>' 'NR == n {print s} {print}' $logfile.filelist | less -S"
+fi
 
 # touch logfile to reserve number in case another job launches before logging starts
 touch "$logfile.status"
@@ -110,18 +117,25 @@ function rsyncwrapper {
 
 export -f rsyncwrapper
 
-read  -n 1 -p "Proceed with transfer? (Y/n):" transfer_approved
+# Ask for confirmation, unless we ran non-interactive.
+if [[ "$noint" != 'yes' ]]; then
+  read -p "Proceed with transfer? ([y]/n):" transfer_input
+  transfer_approved="${transfer_input:0:1}"
+else
+  transfer_approved='y'
+fi
+
 echo ''
 if [ "$transfer_approved" == 'n' ] || [ "$transfer_approved" == 'N' ]; then
   echo 'Transfer aborted.'
-  echo 'Transfer aborted.' >> "$logfile.status"
+  screen -dmS "$session_name" -L -Logfile "$logfile.log" bash -c 'echo Transfer aborted.; sleep 3'
 else
   # launch the screen session with the arguments we passed using the wrapper we defined above
   screen -dmS "$session_name" -L -Logfile "$logfile.log" bash -c 'rsyncwrapper'
-
-  # create a background process that dumps the current screen content to a file for the session so long as the screen exists
-  (while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.status" >/dev/null 2>&1; [ -s "$logfile.err" ] && echo "Error encountered during rsync execution. See $logfile.err" >> "$logfile.status"; sleep 1; done) &
 fi
+
+# create a background process that dumps the current screen content to a file for the session so long as the screen exists
+(while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.status" >/dev/null 2>&1; [ -s "$logfile.err" ] && echo "Error encountered during rsync execution. See $logfile.err" >> "$logfile.status"; sleep 1; done) &
 
 # tell the user where to watch the progress output
 echo "Status can be viewed at $logfile.status"
