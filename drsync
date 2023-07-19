@@ -2,11 +2,11 @@
 
 # create a variable that contains the entire set of arguments passed as a single line and preserving escape characters
 args=""
-noint='no'
+nonint='no'
 for arg in "$@"
 do
   if [[ "$arg" == '--non-int' ]]; then
-    noint='yes'
+    nonint='yes'
   else
     args+=$(printf '%q ' "$arg")
   fi
@@ -26,48 +26,23 @@ logfile="$HOME/.drsync_transfers/$session_name"
 
 # log the command that was used
 printf 'drsync %s' "$args" > "$logfile.cmd"
-
-# do a dry run of the rsync job and log the file list unless we ran non-interactive
-if [[ "$noint" != 'yes' ]]; then
-  bash -c "rsync -v --dry-run $args > $logfile.filelist"
-  bash -c "awk -v n=1 -v s='<===================== VERIFY INCREMENTAL FILE LIST =====================>' 'NR == n {print s} {print}' $logfile.filelist | less -S"
-fi
-
 # touch logfile to reserve number in case another job launches before logging starts
 touch "$logfile.status"
 
-# add to the args to redirect any rsync errors to a file
-args=$(printf '%s 2> %s' "$args" "$logfile.err")
-
-# parse args to figure out if the transfer is using any --include-from text files, so that we can preserve them alongside the logs
-include_from_used='No'
-if [[ $args == *"--include-from"* ]]; then
-  for var in "$@"
-  do
-    if [[ $var == *"--include-from"* ]]; then
-      include_from=$(echo "$var" | sed 's/--include-from=//')
-    fi
-  done
-  cat "$include_from" > "$logfile.includefrom"
-  include_from_used='Yes'
-  # modify the args passed to screen session to cleanup the include file.
-  args=$(printf '%s; rm %s 2>> %s' "$args" "$include_from" "$logfile.err")
-fi
-
-# parse args to figure out if the transfer is using any --include-from text files, so that we can preserve them alongside the logs
+# parse args to figure out if the transfer is using any --include-from or --files-from text files, so that we can preserve them alongside the logs
 files_from_used='No'
-if [[ $args == *"--files-from"* ]]; then
-  for var in "$@"
-  do
-    if [[ $var == *"--files-from"* ]]; then
-      files_from=$(echo "$var" | sed 's/--files-from=//')
-    fi
-  done
-  cat "$files_from" > "$logfile.filesfrom"
-  files_from_used='Yes'
-  # modify the args passed to screen session to cleanup the include file.
-  args=$(printf '%s; rm %s 2>> %s' "$args" "$files_from" "$logfile.err")
-fi
+include_from_used='No'
+for var in "$@"
+do
+  if [[ $var == *"--files-from"* ]]; then
+    files_from=$(echo "$var" | sed 's/--files-from=//')
+    files_from_used='Yes'
+  fi
+  if [[ $var == *"--include-from"* ]]; then
+    include_from=$(echo "$var" | sed 's/--include-from=//')
+    include_from_used='Yes'
+  fi
+done
 
 # parse args to figure out which args are source directories.
 sources=()
@@ -84,7 +59,7 @@ done
 # parse for target
 target="${@: -1}"
 
-# if we passed a --remove-source-files, then modify the args to include a bunch of find and delete empties
+# if we passed a --remove-source-files, change the cleanup message
 cleanup='No'
 if [[ $args == *"--remove-source-files"* ]]; then
   cleanup='Yes'
@@ -97,7 +72,10 @@ export sources_print
 export target
 export cleanup
 export include_from_used
+export include_from
 export files_from_used
+export files_from
+export logfile
 export args
 
 function rsyncwrapper {
@@ -109,16 +87,23 @@ function rsyncwrapper {
   echo Remove and clean sources: "$cleanup"
   echo Use --include-from option: "$include_from_used"
   echo Use --files-from option: "$files_from_used"
-  bash -c "rsync --no-inc-recursive --info=progress2 $args"
+  bash -c "rsync --no-inc-recursive --info=progress2 $args 2> $logfile.err"
+  if [[ "$include_from_used" == 'Yes' ]]; then
+    mv "$include_from" "$logfile.includefrom"
+  fi
+  if [[ "$files_from_used" == 'Yes' ]]; then
+    mv "$files_from" "$logfile.filesfrom"
+  fi
   finish=$(date)
   echo Finished: "$finish"
   sleep 3 
 }
-
 export -f rsyncwrapper
 
-# Ask for confirmation, unless we ran non-interactive.
-if [[ "$noint" != 'yes' ]]; then
+# Do a dry run and ask for confirmation, unless we ran non-interactive.
+if [[ "$nonint" != 'yes' ]]; then
+  bash -c "rsync -v --dry-run $args > $logfile.filelist"
+  bash -c "awk -v n=1 -v s='<===================== VERIFY INCREMENTAL FILE LIST =====================>' 'NR == n {print s} {print}' $logfile.filelist | less -S"
   read -p "Proceed with transfer? ([y]/n):" transfer_input
   transfer_approved="${transfer_input:0:1}"
 else
@@ -128,15 +113,14 @@ fi
 echo ''
 if [ "$transfer_approved" == 'n' ] || [ "$transfer_approved" == 'N' ]; then
   echo 'Transfer aborted.'
-  screen -dmS "$session_name" -L -Logfile "$logfile.log" bash -c 'echo Transfer aborted.; sleep 3'
+  screen -dmS "$session_name" -L -Logfile "$logfile.log" bash -c "touch $logfile.err; echo Transfer aborted.; sleep 3"
 else
   # launch the screen session with the arguments we passed using the wrapper we defined above
   screen -dmS "$session_name" -L -Logfile "$logfile.log" bash -c 'rsyncwrapper'
 fi
 
-# create a background process that dumps the current screen content to a file for the session so long as the screen exists
+# create a background process that dumps the current screen content to a file for the session so long as the screen exists. Also put something in the status file to notify if any error messages were pushed to the error log.
 (while screen -list | grep -q "$session_name"; do screen -S "$session_name" -X hardcopy "$logfile.status" >/dev/null 2>&1; [ -s "$logfile.err" ] && echo "Error encountered during rsync execution. See $logfile.err" >> "$logfile.status"; sleep 1; done) &
 
 # tell the user where to watch the progress output
 echo "Status can be viewed at $logfile.status"
-
