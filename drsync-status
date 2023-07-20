@@ -5,30 +5,18 @@ fixedtn='no'
 
 while getopts 'un:h' opt; do
   case "$opt" in
-    u)
-      username="$OPTARG"
-      ;;
-
     n)
       fixedtn="$OPTARG"
       ;;
 
     ?|h)
-      echo "Usage: $(basename $0) [-u username]"
+      echo "Usage: $(basename $0) [-n transfer number]"
       exit 1
       ;;
   esac
 done
 shift "$(($OPTIND -1))"
-
 userhome=$(eval echo ~"$username")
-
-if [ $# -eq 0 ]
-  then
-    num=3
-  else
-    num="$1"
-fi
 
 # get a list of current sessions
 active_sessions=($(screen -ls | grep -o 'drsync\.[0-9]*'))
@@ -43,24 +31,6 @@ if [[ "$fixedtn" == 'no' ]]; then
       echo ''
     fi
   done
-#  transfer_num_latest=`ls "$HOME/.drsync_transfers" | sort --version-sort | grep "drsync.*.cmd" | tail -1 | grep -o "[1-9][0-9]*"`
-#  session_name=`printf 'drsync.%06g' "$transfer_num"`
-#
-#  if (( num > transfer_num_latest )); then
-#    num="$transfer_num_latest"
-#  fi
-#
-#  for ((n=num-1;n>-1;n--))
-#  do
-#    log_num=$((transfer_num_latest - n))
-#    session_name=`printf 'drsync.%06g' "$log_num"`
-#    logfile=$(eval echo ~"$username"/.drsync_transfers/"$session_name".status)
-#    if [ -f "$logfile" ]; then
-#      echo "========> $logfile <========"
-#      sed -e '/^$/d' "$logfile"
-#      echo ''
-#    fi
-#  done
 else
   session_name=`printf 'drsync.%06g' "$fixedtn"`
   logfile=$(eval echo ~"$username"/.drsync_transfers/"$session_name".status)

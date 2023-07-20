@@ -28,6 +28,7 @@ logfile="$HOME/.drsync_transfers/$session_name"
 printf 'drsync %s' "$args" > "$logfile.cmd"
 # touch logfile to reserve number in case another job launches before logging starts
 touch "$logfile.status"
+touch "$logfile.err"
 
 # parse args to figure out if the transfer is using any --include-from or --files-from text files, so that we can preserve them alongside the logs
 files_from_used='No'
@@ -87,12 +88,12 @@ function rsyncwrapper {
   echo Remove and clean sources: "$cleanup"
   echo Use --include-from option: "$include_from_used"
   echo Use --files-from option: "$files_from_used"
-  bash -c "rsync --no-inc-recursive --info=progress2 $args 2> $logfile.err"
+  bash -c "rsync --no-inc-recursive --info=progress2 $args 2>> $logfile.err"
   if [[ "$include_from_used" == 'Yes' ]]; then
-    mv "$include_from" "$logfile.includefrom 2> $logfile.err"
+    mv "$include_from" "$logfile.includefrom 2>> $logfile.err"
   fi
   if [[ "$files_from_used" == 'Yes' ]]; then
-    mv "$files_from" "$logfile.filesfrom 2> $logfile.err"
+    mv "$files_from" "$logfile.filesfrom 2>> $logfile.err"
   fi
   finish=$(date)
   echo Finished: "$finish"
