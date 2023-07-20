@@ -90,10 +90,10 @@ function rsyncwrapper {
   echo Use --files-from option: "$files_from_used"
   bash -c "rsync --no-inc-recursive --info=progress2 $args 2>> $logfile.err"
   if [[ "$include_from_used" == 'Yes' ]]; then
-    mv "$include_from" "$logfile.includefrom 2>> $logfile.err"
+    mv "$include_from" "$logfile.includefrom" 2>> "$logfile.err"
   fi
   if [[ "$files_from_used" == 'Yes' ]]; then
-    mv "$files_from" "$logfile.filesfrom 2>> $logfile.err"
+    mv "$files_from" "$logfile.filesfrom" 2>> "$logfile.err"
   fi
   finish=$(date)
   echo Finished: "$finish"
