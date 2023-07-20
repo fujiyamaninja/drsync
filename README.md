@@ -23,3 +23,8 @@ percent for all active screen sessions.
   -n option lets you see the status of a particular transfer number.
 
 findrel is a simple find wrapper that is useful for creating --files-from and --include-from file lists.
+
+If you're using zsh, then you can add this to your .zshrc and get all of the rsync auto-completions for drsync:
+compdef drsync=rsync
+
+If you aren't using zsh what the fuck are you doing?
