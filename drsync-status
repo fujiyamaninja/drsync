@@ -3,23 +3,29 @@
 username="$USER"
 fixedtn='no'
 
-while getopts 'un:h' opt; do
-  case "$opt" in
+while getopts 'u:n:h' o; do
+  case "${o}" in
+    u)
+      username="$OPTARG"
+      ;;
+
     n)
       fixedtn="$OPTARG"
       ;;
 
     ?|h)
       echo "Usage: $(basename $0) [-n transfer number]"
+      echo "Usage: $(basename $0) [-u username]"
       exit 1
       ;;
   esac
 done
 shift "$(($OPTIND -1))"
 userhome=$(eval echo ~"$username")
+socketsdir=$(screen -ls | grep -o '/.*/' | sort | uniq)
 
-# get a list of current sessions
-active_sessions=($(screen -ls | grep -o 'drsync\.[0-9]*'))
+# get a list of current sessions for the selected user
+active_sessions=($(find "$socketsdir" -iregex ".*$username.*" | grep -o 'drsync\.[0-9]*'))
 
 if [[ "$fixedtn" == 'no' ]]; then
   for session in "${active_sessions[@]}"
@@ -32,8 +38,8 @@ if [[ "$fixedtn" == 'no' ]]; then
     fi
   done
 else
-  session_name=`printf 'drsync.%06g' "$fixedtn"`
-  logfile=$(eval echo ~"$username"/.drsync_transfers/"$session_name".status)
+  session=`printf 'drsync.%06g' "$fixedtn"`
+  logfile=$(eval echo ~"$username"/.drsync_transfers/"$session".status)
   echo "========> $logfile <========"
   sed -e '/^$/d' "$logfile"
 fi
