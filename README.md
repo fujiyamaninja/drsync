@@ -22,7 +22,8 @@ Features:
 
 Also included is a utility drsync-status, which will display the status logfile, showing the completed
 percent for all active screen sessions.
--n option lets you see the status of a particular transfer number.
+  - -n option lets you see the status of a particular transfer number.
+  - -u option lets you snoop on the transfers of another user, assuming that they have allowed you to read from their ~/.drsync_transfers directory.
 
 findrel is a simple find wrapper that is useful for creating --files-from and --include-from file lists.
 
