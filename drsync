@@ -25,7 +25,7 @@ session_name=$(printf 'drsync.%06g' "$transfer_num")
 logfile="$HOME/.drsync_transfers/$session_name"
 
 # log the command that was used
-printf 'drsync %s' "$args" > "$logfile.cmd"
+printf 'drsync %s' "$*" > "$logfile.cmd"
 # touch logfile to reserve number in case another job launches before logging starts
 touch "$logfile.status"
 touch "$logfile.err"
