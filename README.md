@@ -13,7 +13,6 @@ Features:
   - Includes a --non-int option that will skip display and confirmation of the file list, but retain logging.
   - Logs a whole bunch of stuff including:
     - The shell command that was used to launch the job
-    - Lists of source files, and the target directory/file
     - rsync dry-run incremental file list
     - Error logs on a per transfer basis
     - Cleans up file lists used to feed --include-from= and --files-from= options
